@@ -117,7 +117,7 @@ class GUI(tk.Tk):
 
     def button_start_on_click(self):
         try:
-            self.folder = get_folder(self.button_state) # to be changed
+            self.folder = get_folder(self.button_state) # TODO to be changed (removed)
         except ValueError as e:
             print(e) # update gui as error with e
 
