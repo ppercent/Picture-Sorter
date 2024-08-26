@@ -1,5 +1,6 @@
 import os
 import threading
+from time import sleep
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -13,7 +14,7 @@ class GUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('Trieur D\'images')
-        self.geometry('833x670+89+64')
+        self.geometry('883x670+89+64')
         self.resizable(False, False)
         self.configure(bg='#323232')
         self.init_variables()
@@ -41,11 +42,31 @@ class GUI(tk.Tk):
         # folder
         self.folder = None
 
+        # debug line count
+        self.debug_line_count = 0
+
+        # others
+        self.load_state = False
+        self.loading_job = None
 
     def init_images(self):
-        self.yes_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\oui_64px.png')
-        self.no_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\non_64px.png')
-        self.tip_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\info_25px.png')
+        self.yes_image = tk.PhotoImage(file=os.getcwd() + '/assets/oui_64px.png')
+        self.no_image = tk.PhotoImage(file=os.getcwd() + '/assets/non_64px.png')
+        self.tip_image = tk.PhotoImage(file=os.getcwd() + '/assets/info_25px.png')
+
+    
+    def load_text_safe(self, text, frame_index=0):
+        frames = [' ', '.', '..', '...']
+        new_text = text + frames[frame_index]
+        self.replace_line(new_text)
+        
+        frame_index = (frame_index + 1) % len(frames)
+        self.loading_job = self.after(250, lambda: self.load_text_safe(text, frame_index))
+
+    def stop_loading(self):
+        if self.loading_job:
+            self.after_cancel(self.loading_job)
+            self.loading_job = None
 
     def toggle_button_state(self, state):
         self.yes_to_all_button.configure(state=tk.NORMAL if state == 'normal' else tk.DISABLED)
@@ -64,9 +85,39 @@ class GUI(tk.Tk):
         if path:
             text_variable.set(path)
 
+    def button_analyse_on_click(self):
+        path = self.path_entry_var.get()
+        try:
+            if self.folder:
+                FileUtils.freeFolder(self.folder)
+                self.folder = None
+
+            if self.button_state[0] == '2':
+                dir_basename = os.path.basename(path)
+                # threading.Thread(target=lambda *args: self.load_text(f'Analyse du dossier \'{dir_basename}\' en cours')).start()
+                self.stop_loading()
+                self.load_text_safe(f'Analyse du dossier \'{dir_basename}\' en cours')
+            self.folder = get_folder(self.button_state, path)
+            self.stop_loading()
+
+            self.load_state = False
+            if self.folder:
+                self.analyse_button.configure(fg_color='#4d9b3f', hover_color='#54aa44')
+                self.replace_line(f'Analyse terminée : {self.folder.contents.image_count} photos/vidéos et {self.folder.contents.other_count} autres fichiers détectés dans le dossier \'{dir_basename}\'.')
+                
+            else:
+                self.analyse_button.configure(fg_color='#7f0101', hover_color='#920101')
+
+        except ValueError as e:
+            self.stop_loading()
+            self.load_state = False
+            self.analyse_button.configure(fg_color='#7f0101', hover_color='#920101')
+            self.add_line(f'[ERREUR] -> {e}', '#ff3333')
+            self.folder = None
+
     def button_start_on_click(self):
         try:
-            self.folder = get_folder(self.button_state)
+            self.folder = get_folder(self.button_state) # to be changed
         except ValueError as e:
             print(e) # update gui as error with e
 
@@ -97,7 +148,40 @@ class GUI(tk.Tk):
         self.button_state[field_index-1] = value
         self.update_entries()
 
-    def add_line(text): # TODO STOPPED HERE TO BE CONTINUED
+    def replace_line(self, text, color=None): # TODO fucked up fix the color system & \n problem (if x.some index is > than zero then newline)
+        '''replace the last line of the debug scrolled text by text argument, optionally with a specified color'''
+        last_line_index = int(self.debug.index(tk.END).split('.')[0]) - 2
+        self.debug.configure(state='normal')
+
+        self.debug.delete(f'{last_line_index}.0', f'{last_line_index}.0 lineend')
+        self.debug.insert(f'{last_line_index}.0', f'{text}')
+
+        if color:
+            line_start = f"{last_line_index}.0"
+            line_end = f"{last_line_index + 1}.0"
+            self.debug.tag_add(color, line_start, line_end)
+            self.debug.tag_configure(color, foreground=color)
+
+        self.debug.configure(state='disabled')
+
+    def add_line(self, text, color=None): # TODO fucked up fix the color system 
+        '''add a line with text at the bottom of the debug scrolled text, optionally with a specified color'''
+        last_line_index = int(self.debug.index(tk.END).split('.')[0]) - 1
+        self.debug.configure(state='normal')
+
+        end_index = self.debug.index(tk.END)
+        self.debug.insert(end_index, f'{text}\n')
+
+        if color:
+            line_start = f"{last_line_index}.0"
+            line_end = f"{last_line_index + 1}.0"
+            self.debug.tag_add(color, line_start, line_end)
+            self.debug.tag_configure(color, foreground=color)
+
+        self.debug.yview_moveto(1.0)
+        self.debug.configure(state='disabled')
+
+
 
     def update_gui_fields(self, field_index, *args):
         print('called ->', field_index)
@@ -220,6 +304,10 @@ class GUI(tk.Tk):
         ttk_styling = ttk.Style()
         ttk_styling.configure('BlackFrame.TFrame', background=background_color)
         ttk_styling.configure('BlackCheckbutton.TCheckbutton', foreground=text_color, font=default_font, background=background_color)
+        ttk_styling.map('BlackCheckbutton.TCheckbutton',
+          background=[('active', background_color)],
+          foreground=[('active', text_color)])
+        
 
         # explaination text
         explaination_frame = ttk.Frame(self, style='BlackFrame.TFrame')
@@ -279,7 +367,7 @@ class GUI(tk.Tk):
                               border_color=self.border_color, bg_color=background_color, placeholder_text='yyyy/mm/dd',
                               fg_color=field_foreground_color, text_color=text_color,
                               corner_radius=3)
-        sortingtype_button_tip = tk.Button(sortingtype_frame, relief='flat', bd=0, activebackground=background_color, background=background_color, image=self.tip_image)
+        sortingtype_button_tip = tk.Button(sortingtype_frame, relief='flat', highlightthickness=0, bd=0, activebackground=background_color, background=background_color, image=self.tip_image)
 
         sortingtype_label.place(x=20, y=380-180-20+55)
         self.sortingtype_entry.pack(side='left', anchor='nw')
@@ -300,7 +388,7 @@ class GUI(tk.Tk):
                               border_color=self.border_color, bg_color=background_color, textvariable=self.namingtype_entry_var,
                               fg_color=field_foreground_color, text_color=text_color,
                               corner_radius=3, placeholder_text='laisser vide pour ne pas renomer')
-        namingtype_button_tip = tk.Button(namingtype_frame, relief='flat', bd=0, activebackground=background_color, background=background_color, image=self.tip_image)
+        namingtype_button_tip = tk.Button(namingtype_frame, relief='flat', bd=0, highlightthickness=0, activebackground=background_color, background=background_color, image=self.tip_image)
 
         namingtype_label.place(x=20, y=260+35)
         self.namingtype_entry.pack(side='left', anchor='nw')
@@ -328,36 +416,37 @@ class GUI(tk.Tk):
         option_text_label.place(x=20, y=410-30)
         filetype_check.place(x=30, y=445-30-7)
         insertname_check.place(x=30, y=470-30-7)
-        additional_tip_label.place(x=5, y=345)
+        additional_tip_label.place(x=5, y=346)
 
         # buttons
         button_frame = CTkFrame(self, height=270, width=170, corner_radius=10, fg_color='#3D3D3D', border_width=1, border_color='#3D3D3D')
         border_frame = CTkFrame(self, height=8, width=170, corner_radius=0, fg_color=background_color,  border_color=background_color)
         self.hide_buttons_frame = CTkFrame(self, height=270-90-8, width=170, corner_radius=10, fg_color=background_color, border_width=1, border_color=background_color)
         button_frame.pack_propagate(False)
-        analyse_button = CTkButton(button_frame, text='Analyser Le Dossier', height=25,
-                                       bg_color=background_color, text_color=text_color, fg_color='#7f0101',
-                                       corner_radius=4, hover_color='#920101')
+        self.analyse_button = CTkButton(button_frame, text='Analyser Le Dossier', height=25,
+                                       bg_color='#3D3D3D', text_color=text_color, fg_color='#7f0101',
+                                       corner_radius=4, hover_color='#920101',
+                                       command=lambda *args: threading.Thread(target=lambda *args: self.button_analyse_on_click()).start())
         start_sorting_button = CTkButton(button_frame, text='Commencer le Triage', height=25,
-                                       bg_color=background_color, text_color=text_color, fg_color=button_background_color,
+                                       bg_color='#3D3D3D', text_color=text_color, fg_color=button_background_color,
                                        corner_radius=4, hover_color=button_background_hover_color,
                                        command=lambda: self.button_start_on_click())
         filecheck_label = ttk.Label(button_frame, text='', font=(default_font[0], 10),
                                     foreground=text_color, background='#3D3D3D', wraplength=170)
-        self.yes_button = tk.Button(button_frame, relief='flat', bd=0, activebackground='#3D3D3D', background='#3D3D3D', image=self.yes_image)
-        self.no_button = tk.Button(button_frame, relief='flat', bd=0, activebackground='#3D3D3D', background='#3D3D3D', image=self.no_image)
+        self.yes_button = tk.Button(button_frame, relief='flat', bd=0, highlightthickness=0, activebackground='#3D3D3D', background='#3D3D3D', image=self.yes_image)
+        self.no_button = tk.Button(button_frame, relief='flat', bd=0, highlightthickness=0, activebackground='#3D3D3D', background='#3D3D3D', image=self.no_image)
         self.yes_to_all_button = CTkButton(button_frame, text='Oui Pour Tous', height=25,
-                                       bg_color=background_color, fg_color=button_background_color,
+                                       bg_color='#3D3D3D', fg_color=button_background_color,
                                        corner_radius=4, hover_color=button_background_hover_color)
         self.no_to_all_button = CTkButton(button_frame, text='Non Pour Tous', height=25,
-                                       bg_color=background_color, fg_color=button_background_color,
+                                       bg_color='#3D3D3D', fg_color=button_background_color,
                                        corner_radius=4, hover_color=button_background_hover_color)
 
         button_frame.place(x=550, y=115)
         border_frame.place(x=550, y=205)
         self.toggle_button_state('I LOVE WATERMELON!!!!!')
 
-        analyse_button.place(relx=0.5 - analyse_button['width'] / 2 / 170, y=15)
+        self.analyse_button.place(relx=0.5 - self.analyse_button['width'] / 2 / 170, y=15)
         start_sorting_button.place(relx=0.5 - start_sorting_button['width'] / 2 / 170, y=50) #+35
         self.yes_to_all_button.place(relx=0.5 - self.yes_to_all_button['width'] / 2 / 170, y=148)
         self.no_to_all_button.place(relx=0.5 - self.no_to_all_button['width'] / 2 / 170, y=179)
@@ -372,9 +461,18 @@ class GUI(tk.Tk):
         self.namingtype_entry_var.trace_add('write', lambda *args: self.update_gui_fields(4))
 
         # debug scrolled text
-        debug = scrolledtext.ScrolledText(self, wrap=tk.WORD, height=12, width=115, font=(default_font[0], 10), fg=text_color, bg='black')
+        self.debug = scrolledtext.ScrolledText(self, wrap=tk.WORD, state='disabled', height=11,
+                                               width=107, font=(default_font[0], 10),
+                                               fg=text_color, bg='black')
+        self.debug.tag_configure("sel", background='black', foreground=text_color)
 
-        debug.place(x=3, y=470)
+        self.debug.place(x=3, y=470)
+
+        # threading.Thread(target=lambda *args: self.load_text("jean claude is waiting")).start()
+
+
+            
+
 
 a = GUI()
 a.draw_gui()
