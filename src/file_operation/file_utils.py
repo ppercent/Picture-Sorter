@@ -19,11 +19,11 @@ class Folder(Structure):
                 ("image_count", c_int),
                 ("others", POINTER(Other)),
                 ("other_count", c_int)]
-    
+
 if os.name == 'nt':
     FileUtils = ctypes.CDLL(os.getcwd() + '\\src\\lib\\libFileUtils.dll')
 else:
-    FileUtils = ctypes.CDLL(os.getcwd() + '\\src\\lib\\libFileUtils.so')
+    FileUtils = ctypes.CDLL(os.getcwd() + '/lib/libFileUtils.so')
 
 FileUtils.getImages.argtypes = [c_char_p]
 FileUtils.getImages.restype = POINTER(Folder)
@@ -34,16 +34,30 @@ FileUtils.freeFolder.restype = None
 FileUtils.moveFile.argtypes = [c_char_p, c_char_p]
 FileUtils.moveFile.restype = c_int
 
+# def get_destination_path():
 
-def get_folder(button_state):
-    '''returns a pointer to an object instance folder'''
+
+def get_folder(button_state, path):
+    if button_state[0] == '0':
+        raise ValueError("Le chemin d'accès spécifié est invalide. Veuillez entrer un chemin de dossier existant et accessible.")
+    elif button_state[0] == '1':
+        raise ValueError("Le champs du chemin d'accès est vide. Veuillez entrer un chemin valide.")
+
+    folder = FileUtils.getImages(path.encode('utf-8'))
+    if not folder:
+        raise ValueError("Une erreur s'est produite lors de l'accès au dossier. Vérifiez les permissions ou changez le dossier d'entré.")
+    return folder
+
+def move_files(button_state, folder):
     possible_state = ['2222', '2221', '2212', '2122', '2121', '2112']
     state = ''.join(button_state)
     
-    if state in possible_state:
-        # create and return folder pointer
+    if state in possible_state and folder:
+        # TODO start moving the files
         print()
     else:
+        if not folder:
+            raise ValueError("Le chemin d'accès n'a pas été analysé. Veuillez commencer par analyser le chemin d'accès.")
         if state[0] == '1':
             raise ValueError("Le champs du chemin d'accès est vide. Veuillez entrer un chemin valide.")
         elif state[0] == '0':
