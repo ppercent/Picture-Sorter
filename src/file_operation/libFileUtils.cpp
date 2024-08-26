@@ -1,6 +1,6 @@
 #include <filesystem>
 #include <algorithm>
-#include <windows.h>// TO REMOVE LATER
+// #include <windows.h>// TO REMOVE LATER
 #include <iostream>
 #include <fstream>
 #include <cstring>
@@ -136,7 +136,9 @@ extern "C" {
 
             return folder;
         } catch (const std::exception& e) {
-            std::cerr << "Error in getImages(): " << e.what() << '\n';
+            // std::string errorMsg = "Le dossier ne peut pas être traité en raison d'une erreur de permission. Le programme ne peut pas continuer, veuillez changer le dossier d'entré. Détails de l'erreur: ";
+            // errorMsg += e.what();
+            std::cerr << "Error: " << e.what() << std::endl;
             return nullptr;
         }
     }
