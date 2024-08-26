@@ -55,7 +55,7 @@ class GUI(tk.Tk):
         self.tip_image = tk.PhotoImage(file=os.getcwd() + '/assets/info_25px.png')
 
     
-    def load_text_safe(self, text, frame_index=0):
+    def load_text_safe(self, text, frame_index=0): # TODO probably an error here
         frames = [' ', '.', '..', '...']
         new_text = text + frames[frame_index]
         self.replace_line(new_text)
@@ -103,7 +103,7 @@ class GUI(tk.Tk):
             self.load_state = False
             if self.folder:
                 self.analyse_button.configure(fg_color='#4d9b3f', hover_color='#54aa44')
-                self.replace_line(f'Analyse terminée : {self.folder.contents.image_count} photos/vidéos et {self.folder.contents.other_count} autres fichiers détectés dans le dossier \'{dir_basename}\'.')
+                self.replace_line(f'Analyse terminée : {self.folder.contents.image_count} photos/vidéos et {self.folder.contents.other_count} autres fichiers détectés dans le dossier \'{dir_basename}\'.\n')
                 
             else:
                 self.analyse_button.configure(fg_color='#7f0101', hover_color='#920101')
@@ -117,7 +117,7 @@ class GUI(tk.Tk):
 
     def button_start_on_click(self):
         try:
-            self.folder = get_folder(self.button_state) # TODO to be changed (removed)
+            self.folder = get_folder(self.button_state) # to be changed
         except ValueError as e:
             print(e) # update gui as error with e
 
@@ -150,6 +150,7 @@ class GUI(tk.Tk):
 
     def replace_line(self, text, color=None): # TODO fucked up fix the color system & \n problem (if x.some index is > than zero then newline)
         '''replace the last line of the debug scrolled text by text argument, optionally with a specified color'''
+        print(self.debug.index(tk.END))
         last_line_index = int(self.debug.index(tk.END).split('.')[0]) - 2
         self.debug.configure(state='normal')
 
@@ -469,6 +470,14 @@ class GUI(tk.Tk):
         self.debug.place(x=3, y=470)
 
         # threading.Thread(target=lambda *args: self.load_text("jean claude is waiting")).start()
+        # self.add_line('pls dont replace XD')
+        # self.replace_line('no way')
+        # self.replace_line('no way1')
+        # self.replace_line('no way2', 'red')
+        # self.replace_line('no way3')
+        # self.replace_line('no way4')
+        # self.replace_line('no way5')
+        # self.replace_line('no way6')
 
 
             
