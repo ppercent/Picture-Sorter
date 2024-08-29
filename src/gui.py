@@ -64,9 +64,11 @@ class GUI(tk.Tk):
         # TODO add font to have a stable scrolltext widget size
 
     def init_images(self):
-        self.yes_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\oui_64px.png')
-        self.no_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\non_64px.png')
-        self.tip_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\info_25px.png')
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        self.yes_image = tk.PhotoImage(file=base_dir + '\\assets\\oui_64px.png')
+        self.no_image = tk.PhotoImage(file=base_dir + '\\assets\\non_64px.png')
+        self.tip_image = tk.PhotoImage(file=base_dir + '\\assets\\info_25px.png')
 
     def load_text_safe(self, text, frame_index=0):
         if self.is_clickable_analyse:
@@ -648,3 +650,4 @@ class GUI(tk.Tk):
         self.debug.tag_configure("sel", background='black', foreground=text_color)
 
         self.debug.place(x=3, y=470)
+            
