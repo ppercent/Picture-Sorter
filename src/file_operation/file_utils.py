@@ -16,8 +16,11 @@ class Folder(Structure):
                 ("others", POINTER(Other)),
                 ("other_count", c_int)]
 
+base_dir = os.path.dirname(os.path.abspath(__file__))
+lib_dir = os.path.join(base_dir, "..", "lib")
+
 if os.name == 'nt':
-    FileUtils = ctypes.CDLL(os.getcwd() + '\\src\\lib\\libFileUtils.dll')
+    FileUtils = ctypes.CDLL(os.path.join(lib_dir, "libFileUtils.dll"))
 else:
     FileUtils = ctypes.CDLL(os.getcwd() + '/lib/libFileUtils.so')
 
