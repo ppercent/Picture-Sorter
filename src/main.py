@@ -1,10 +1,9 @@
-from new_gui import GUI
+from gui import GUI
 
-def launch_app():
+def start_app():
     App = GUI()
     App.draw_gui()
     App.mainloop()
 
-
 if __name__ == '__main__':
-    launch_app()
+    start_app()
