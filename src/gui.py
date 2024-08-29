@@ -21,11 +21,6 @@ class GUI(tk.Tk):
         self.init_variables()
         self.init_images()
 
-        # delete here
-        self.bind('<Motion>', self.update_title)
-        self.mouse_pos_text = tk.StringVar()
-        self.mouse_pos_text.set('(0, 0)')
-
     def init_variables(self):
         # checkboxes
         self.filetype_check_var = tk.StringVar(value='off')
@@ -61,11 +56,10 @@ class GUI(tk.Tk):
         self.is_clickable_analyse = True
         self.document_blacklist = []
 
-        # TODO add font to have a stable scrolltext widget size
-
     def init_images(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
+        self.iconbitmap(base_dir + '\\assets\\app_icon.ico')
         self.yes_image = tk.PhotoImage(file=base_dir + '\\assets\\oui_64px.png')
         self.no_image = tk.PhotoImage(file=base_dir + '\\assets\\non_64px.png')
         self.tip_image = tk.PhotoImage(file=base_dir + '\\assets\\info_25px.png')
@@ -241,11 +235,6 @@ class GUI(tk.Tk):
         self.add_line('*** TRI TERMINÉ ***')
         self.start_sorting_button.configure(state='normal')
         self.analyse_button.configure(state='normal')
-
-    def update_title(self, event): # delete here
-        self.title_text = f'Trieur D\'images - x={event.x} y={event.y}'
-        self.title(self.title_text)
-        self.mouse_pos_text.set(f'({event.x}, {event.y})')
 
     def update_entries(self):
         # possible_state = ['2222', '2122', '2212', '2221', '2112', '2121']
