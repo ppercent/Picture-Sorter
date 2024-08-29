@@ -1,5 +1,6 @@
 import os
 import threading
+from time import sleep
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -7,14 +8,15 @@ from tkinter import scrolledtext
 from customtkinter import CTkEntry, CTkButton, CTkFrame
 from utils.tooltip import CustomTooltipLabel
 from utils import utils
-from file_operation.file_utils import FileUtils, get_folder
+from file_operation.file_utils import FileUtils, get_folder, check_button_state, get_destination_path
 
 class GUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('Trieur D\'images')
-        self.geometry('833x670+89+64')
+        self.geometry('883x670+89+64')
         self.resizable(False, False)
+        self.protocol('WM_DELETE_WINDOW', self.on_close)
         self.configure(bg='#323232')
         self.init_variables()
         self.init_images()
@@ -34,6 +36,7 @@ class GUI(tk.Tk):
         self.output_path_var = tk.StringVar(value='')
         self.namingtype_entry_var = tk.StringVar(value='')
         self.sortingtype_entry_var = tk.StringVar(value='')
+        self.filecheck_label_var = tk.StringVar(value='')
 
         # global button state
         self.button_state = ['1', '1', '1', '1'] # 0: invalid, red | 1: neutral, grey | 2: valid, green
@@ -41,11 +44,45 @@ class GUI(tk.Tk):
         # folder
         self.folder = None
 
+        # debug line count
+        self.debug_line_count = 0
+
+        # sorted items count
+        self.moved_images = 0
+        self.moved_documents = 0
+
+        # wait var
+        self.button_clicked = tk.BooleanVar(value=False)
+        self.click = None
+
+        # others
+        self.load_state = False
+        self.loading_job = None
+        self.is_clickable_analyse = True
+        self.document_blacklist = []
+
+        # TODO add font to have a stable scrolltext widget size
 
     def init_images(self):
         self.yes_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\oui_64px.png')
         self.no_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\non_64px.png')
         self.tip_image = tk.PhotoImage(file=os.getcwd() + '\\src\\assets\\info_25px.png')
+
+    def load_text_safe(self, text, frame_index=0):
+        if self.is_clickable_analyse:
+            self.stop_loading()
+            return
+        frames = [' ', '.', '..', '...']
+        new_text = text + frames[frame_index]
+        self.replace_line(new_text)
+        
+        frame_index = (frame_index + 1) % len(frames)
+        self.loading_job = self.after(250, lambda: self.load_text_safe(text, frame_index))
+
+    def stop_loading(self):
+        if self.loading_job:
+            self.after_cancel(self.loading_job)
+            self.loading_job = None
 
     def toggle_button_state(self, state):
         self.yes_to_all_button.configure(state=tk.NORMAL if state == 'normal' else tk.DISABLED)
@@ -64,11 +101,144 @@ class GUI(tk.Tk):
         if path:
             text_variable.set(path)
 
-    def button_start_on_click(self):
+    def button_analyse_on_click(self):
+        if not self.is_clickable_analyse:
+            return
+        self.is_clickable_analyse = False
+        path = self.path_entry_var.get()
         try:
-            self.folder = get_folder(self.button_state)
+            if self.folder:
+                FileUtils.freeFolder(self.folder)
+                self.folder = None
+
+            if self.button_state[0] == '2':
+                dir_basename = os.path.basename(path)
+                # threading.Thread(target=lambda *args: self.load_text(f'Analyse du dossier \'{dir_basename}\' en cours')).start()
+                self.stop_loading()
+                self.load_text_safe(f'Analyse du dossier \'{dir_basename}\' en cours')
+            self.folder = get_folder(self.button_state, path)
+            sleep(1) # ahah i wasted 1 sec
+            self.stop_loading()
+
+            self.load_state = False
+            if self.folder:
+                self.analyse_button.configure(fg_color='#4d9b3f', hover_color='#54aa44')
+                self.replace_line(f'Analyse terminée: {self.folder.contents.image_count} photos/vidéos et {self.folder.contents.other_count} autres fichiers détectés dans le dossier \'{dir_basename}\'.\n')
+                self.add_line('Appuyez sur \'Commencer Le Triage\' pour commencer à les trier')
+                
+            else:
+                self.analyse_button.configure(fg_color='#7f0101', hover_color='#920101')
+            self.is_clickable_analyse = True
         except ValueError as e:
-            print(e) # update gui as error with e
+            self.stop_loading()
+            self.load_state = False
+            self.analyse_button.configure(fg_color='#7f0101', hover_color='#920101')
+            self.replace_line(f'[ERREUR] -> {e}', '#ff3333')
+            self.folder = None
+            self.is_clickable_analyse = True
+
+    def button_start_on_click(self):
+        self.start_sorting_button.configure(state='disabled')
+        self.analyse_button.configure(state='disabled')
+
+        # get data
+        path = self.path_entry_var.get()
+        output_path = self.output_path_var.get()
+        sorting_type = self.sortingtype_entry_var.get()
+        naming_type = self.namingtype_entry_var.get()
+        is_sorting_documents = True if self.filetype_check_var.get() == 'on' else False
+        is_inserting_date = True if self.insertname_check_var.get() == 'off' else False
+
+        # check
+        try:
+            check_button_state(self.button_state, self.folder, self.insertname_check_var.get())
+        except ValueError as e:
+            self.add_line(f'[ERREUR] -> {e}', '#ff3333')
+            self.start_sorting_button.configure(state='normal')
+            self.analyse_button.configure(state='normal')
+            return
+        
+        # move files
+        if is_sorting_documents:
+            self.update_blacklist()
+            
+        threading.Thread(target=lambda *args: self.move_files(output_path, sorting_type, naming_type, is_inserting_date, is_sorting_documents)).start()
+
+    def button_click(self, click):
+        self.click = click
+        self.button_clicked.set(True)
+
+    def update_blacklist(self):
+        document_count = self.folder.contents.other_count
+        self.toggle_button_state('normal')
+
+        for i in range(document_count):
+            current_path = self.folder.contents.others[i].path.decode('utf-8')
+            current_name = os.path.basename(current_path)
+
+            self.button_clicked.set(False)
+            self.click = None
+
+            self.filecheck_label_var.set(f"'{current_name}' n'est pas une image/vidéo, inclure ?")
+
+            self.wait_variable(self.button_clicked)
+
+            if self.click == 'yes-to-all':
+                break
+            elif self.click == 'yes':
+                continue
+            elif self.click == 'no':
+                self.document_blacklist.append(i)
+            else:
+                for y in range(i, document_count):
+                    self.document_blacklist.append(y)
+                break
+        
+        self.toggle_button_state('THIS IS AWSOME')
+        self.filecheck_label_var.set('')
+
+    def move_files(self, output_path, sorting_type, naming_type, is_inserting_date, is_sorting_documents):
+        image_count = self.folder.contents.image_count
+        document_count = self.folder.contents.other_count
+        for i in range(image_count):
+            current_image_path = self.folder.contents.images[i].path.decode('utf-8')
+            current_image_date = self.folder.contents.images[i].date.decode('utf-8')
+            current_destination_path = get_destination_path(current_image_path, output_path, sorting_type, naming_type, is_inserting_date, current_image_date)
+
+            self.add_line(f'Traitement en cours: {current_image_path}')
+
+            try:
+                current_img_retval = FileUtils.moveFile(bytes(current_image_path, 'utf-8'), bytes(current_destination_path, 'utf-8'))
+            except OSError as e:
+                self.add_line(f'[ERREUR] Erreur lors du déplacement du fichier: {current_image_path}', '#ff3333')
+
+            if current_img_retval == 0:
+                self.moved_images += 1
+
+        for i in range(document_count):
+            if not is_sorting_documents:
+                break
+            if i in self.document_blacklist:
+                continue
+            current_document_path = self.folder.contents.others[i].path.decode('utf-8')
+            current_document_date = self.folder.contents.others[i].date.decode('utf-8')
+            current_destination_path_doc = get_destination_path(current_document_path, output_path, sorting_type, naming_type, is_inserting_date, current_document_date)
+
+            self.add_line(f'Traitement en cours: {current_document_path}')
+
+            try:
+                current_doc_retval = FileUtils.moveFile(bytes(current_document_path, 'utf-8'), bytes(current_destination_path_doc, 'utf-8'))
+            except OSError as e:
+                self.add_line(f'[ERREUR] Erreur lors du déplacement du fichier: {current_document_path}', '#ff3333')
+
+            if current_doc_retval == 0:
+                self.moved_documents += 1
+                
+        self.add_line('      ')
+        self.add_line(f'{self.moved_images} images/vidéos et {self.moved_documents} documents ont été tri avec succès', 'green')
+        self.add_line('*** TRI TERMINÉ ***')
+        self.start_sorting_button.configure(state='normal')
+        self.analyse_button.configure(state='normal')
 
     def update_title(self, event): # delete here
         self.title_text = f'Trieur D\'images - x={event.x} y={event.y}'
@@ -80,12 +250,10 @@ class GUI(tk.Tk):
         # impossible_state = [0xxx, 1xxx, 1x11, 2x11, 2x00]
         entries = [self.path_entry, self.output_path, self.sortingtype_entry, self.namingtype_entry]
         joined = ''.join(self.button_state)
-        print(joined)
         for i in range(4):
             current_entry = entries[i]
             current_state = int(joined[i])
             if current_state == 0:
-                print('set color to red')
                 current_entry.configure(border_color=self.border_color_invalid)
             elif current_state == 1:
                 current_entry.configure(border_color=self.border_color)
@@ -97,24 +265,111 @@ class GUI(tk.Tk):
         self.button_state[field_index-1] = value
         self.update_entries()
 
-    def add_line(text): # TODO STOPPED HERE TO BE CONTINUED
+    def replace_line_1(self, text, color=None): # TODO fucked up fix the color system & \n problem (if x.some index is > than zero then newline)
+        '''replace the last line of the debug scrolled text by text argument, optionally with a specified color'''
+        last_line_index = int(self.debug.index(tk.END).split('.')[0]) - 2
+        self.debug.configure(state='normal')
 
+        self.debug.delete(f'{last_line_index}.0', f'{last_line_index}.0 lineend')
+        self.debug.insert(f'{last_line_index}.0', f'{text}')
+
+        if color:
+            line_start = f"{last_line_index}.0"
+            line_end = f"{last_line_index + 1}.0"
+            self.debug.tag_add(color, line_start, line_end)
+            self.debug.tag_configure(color, foreground=color)
+
+        self.debug.configure(state='disabled')
+
+    def add_line_1(self, text, color=None): # TODO fucked up fix the color system 
+        '''add a line with text at the bottom of the debug scrolled text, optionally with a specified color'''
+        last_line_index = int(self.debug.index(tk.END).split('.')[0]) - 1
+        self.debug.configure(state='normal')
+
+        end_index = self.debug.index(tk.END)
+        self.debug.insert(end_index, f'{text}\n')
+
+        if color:
+            line_start = f"{last_line_index}.0"
+            line_end = f"{last_line_index + 1}.0"
+            self.debug.tag_add(color, line_start, line_end)
+            self.debug.tag_configure(color, foreground=color)
+
+        self.debug.yview_moveto(1.0)
+        self.debug.configure(state='disabled')
+
+    def print_line_lengths(self):
+        num_lines = int(self.debug.index(tk.END).split('.')[0]) - 1
+        for line_num in range(1, num_lines + 1):
+            line_content = self.debug.get(f"{line_num}.0", f"{line_num}.end")
+            line_length = len(line_content)
+            print(f"Line {line_num}: {line_length} columns")
+
+    def remove_extra_empty_lines(self):
+        self.debug.configure(state='normal')
+    
+        line_count = int(self.debug.index(tk.END).split('.')[0]) - 1
+    
+        for line_num in range(line_count, 0, -1):
+            line_content = self.debug.get(f"{line_num}.0", f"{line_num}.end")
+        
+            if line_content.strip():
+                break
+            if line_num < line_count:
+                self.debug.delete(f"{line_num}.0", f"{line_num+1}.0")
+        self.debug.configure(state='disabled')
+
+    def add_line(self, text, color=None):
+        self.debug.configure(state='normal')
+        current = int(self.debug.index(tk.END).split('.')[0]) - 1
+        self.debug.insert(tk.END, text+'\n')
+        line_start = f"{current}.0"
+        line_end = f"{current + 1}.0"
+        if color:
+            self.debug.tag_add(color, line_start, line_end)
+            self.debug.tag_configure(color, foreground=color)
+        else:
+            for tag in self.debug.tag_names(line_start):
+                self.debug.tag_remove(tag, line_start, line_end)
+        self.debug.yview_moveto(1.0)
+        self.debug.configure(state='disabled')
+
+    def replace_line(self, text, color=None):
+        self.debug.configure(state='normal')
+        previous_line_index = int(self.debug.index(tk.END).split('.')[0]) - 2
+        self.debug.delete(f'{previous_line_index}.0', f'{previous_line_index}.0 lineend')
+        self.debug.insert(f'{previous_line_index}.0', text+'\n')
+        if previous_line_index == 0:
+            line_start = f"{previous_line_index + 1}.0"
+            line_end = f"{previous_line_index + 2}.0"
+        else:
+            line_start = f"{previous_line_index}.0"
+            line_end = f"{previous_line_index + 1}.0"
+        if color:   
+            self.debug.tag_add(color, line_start, line_end)
+            self.debug.tag_configure(color, foreground=color)
+        else:
+            for tag in self.debug.tag_names(line_start):
+                self.debug.tag_remove(tag, line_start, line_end)
+
+        self.debug.configure(state='disabled')
+        self.remove_extra_empty_lines()
+        
     def update_gui_fields(self, field_index, *args):
-        print('called ->', field_index)
         if field_index == 1:
+            # update analyse button bg color
+            self.analyse_button.configure(fg_color='#7f0101', hover_color='#920101')
+
             # is path entry
             if len(self.path_entry_var.get()) == 0:
                 # is neutral
-                print('is neutral')
                 self.update_button_state(field_index, '1')
                 return
             if FileUtils.directoryExists(bytes(self.path_entry_var.get(), 'utf-8')):
                 # is valid
-                print('is valid')
                 self.update_button_state(field_index, '2')
             else:
                 # is invalid
-                print('is invalid')
                 self.update_button_state(field_index, '0')
 
         elif field_index == 2:
@@ -153,21 +408,16 @@ class GUI(tk.Tk):
                 # is invalid
                 self.update_button_state(field_index, '0')
 
+    def on_close(self):
+        if self.folder:
+            FileUtils.freeFolder(self.folder)
+        self.destroy()
+        os._exit(0)
+
     def draw_gui(self):
         # texts
         self.title_text = 'Trieur D\'images - Developpé Par Constantin™ ;)'
         explaination_text = 'Ce programme permet de trier et nommer par date des photos et des documents en masse.'
-        example_text = (
-            "       Pour un mode de triage: yyyy/yyyymm et de nommage yyyymmddhhMMss, l'arborescence serai la suivante:\n"
-            "                 2024/\n"
-            "                 └── 2024 01/\n"
-            "                     ├── 2024-01-17-10-29-05.jpg\n"
-            "                     └── 2024-01-21-14-45-32.jpg\n"
-            "\n"
-            "                 2023/\n"
-            "                 └── 2023 12/\n"
-            "                     ├── 2023-12-10-19-03-10.jpg\n"
-            "                     └── 2023-12-16-22-38-45.jpg\n")
         path_entry_text = '1. Entrez le repertoire de photos:'
         output_path_text = '2. Entrez le repertoire de sortie'
         sortingtype_text = '3. Entrez le mode de triage:'
@@ -182,12 +432,12 @@ class GUI(tk.Tk):
             "└── repertoire_sortie/\n"
             "    ├── 2024/\n"
             "    │   └── 2024-01/\n"
-            "    │       ├── IMG_20240117_102905.jpg\n"
-            "    │       └── IMG_20240121_144532.jpg\n"
+            "    │       ├── IMG_0001.jpg\n"
+            "    │       └── IMG_0002.jpg\n"
             "    └── 2023/\n"
             "        └── 2023-12/\n"
-            "            ├── IMG_20231210_190310.jpg\n"
-            "            └── IMG_20231216_223845.jpg\n"
+            "            ├── IMG_0003.jpg\n"
+            "            └── IMG_0004.jpg\n"
             "\n(Vide = pas de tri)")
         namingtype_tip_text = (
             "Format de renommage des fichiers : \n"
@@ -220,18 +470,20 @@ class GUI(tk.Tk):
         ttk_styling = ttk.Style()
         ttk_styling.configure('BlackFrame.TFrame', background=background_color)
         ttk_styling.configure('BlackCheckbutton.TCheckbutton', foreground=text_color, font=default_font, background=background_color)
+        ttk_styling.map('BlackCheckbutton.TCheckbutton',
+          background=[('active', background_color)],
+          foreground=[('active', text_color)])
+        
 
         # explaination text
         explaination_frame = ttk.Frame(self, style='BlackFrame.TFrame')
 
         title_label = ttk.Label(self, text=self.title_text, foreground=text_color, background=background_color, font=default_font)
         explaination_label = ttk.Label(explaination_frame, text=explaination_text, foreground=text_color, background=background_color, font=caption_font)
-        example_label = ttk.Label(explaination_frame, text=example_text, foreground=text_color, background=background_color, font=default_font)
 
         # explaination text layout
         title_label.pack(pady=15)
         explaination_label.pack(pady=8)
-        # example_label.pack()
         explaination_frame.pack(side='left', anchor='nw')
 
         # path entry
@@ -247,7 +499,6 @@ class GUI(tk.Tk):
                                        corner_radius=3, hover_color=button_background_hover_color,
                                        command=lambda: self.browse_file(self.path_entry_var))
         
-        # entry fields layout
         self.path_entry.pack(side='left', anchor='nw')
         browse_path_button.pack(padx=12, side='left', anchor='ne')
         path_entry_label.place(x=20, y=120) #+25 next 300 before
@@ -279,7 +530,7 @@ class GUI(tk.Tk):
                               border_color=self.border_color, bg_color=background_color, placeholder_text='yyyy/mm/dd',
                               fg_color=field_foreground_color, text_color=text_color,
                               corner_radius=3)
-        sortingtype_button_tip = tk.Button(sortingtype_frame, relief='flat', bd=0, activebackground=background_color, background=background_color, image=self.tip_image)
+        sortingtype_button_tip = tk.Button(sortingtype_frame, relief='flat', highlightthickness=0, bd=0, activebackground=background_color, background=background_color, image=self.tip_image)
 
         sortingtype_label.place(x=20, y=380-180-20+55)
         self.sortingtype_entry.pack(side='left', anchor='nw')
@@ -300,7 +551,7 @@ class GUI(tk.Tk):
                               border_color=self.border_color, bg_color=background_color, textvariable=self.namingtype_entry_var,
                               fg_color=field_foreground_color, text_color=text_color,
                               corner_radius=3, placeholder_text='laisser vide pour ne pas renomer')
-        namingtype_button_tip = tk.Button(namingtype_frame, relief='flat', bd=0, activebackground=background_color, background=background_color, image=self.tip_image)
+        namingtype_button_tip = tk.Button(namingtype_frame, relief='flat', bd=0, highlightthickness=0, activebackground=background_color, background=background_color, image=self.tip_image)
 
         namingtype_label.place(x=20, y=260+35)
         self.namingtype_entry.pack(side='left', anchor='nw')
@@ -328,37 +579,42 @@ class GUI(tk.Tk):
         option_text_label.place(x=20, y=410-30)
         filetype_check.place(x=30, y=445-30-7)
         insertname_check.place(x=30, y=470-30-7)
-        additional_tip_label.place(x=5, y=345)
+        additional_tip_label.place(x=5, y=346)
 
         # buttons
         button_frame = CTkFrame(self, height=270, width=170, corner_radius=10, fg_color='#3D3D3D', border_width=1, border_color='#3D3D3D')
         border_frame = CTkFrame(self, height=8, width=170, corner_radius=0, fg_color=background_color,  border_color=background_color)
         self.hide_buttons_frame = CTkFrame(self, height=270-90-8, width=170, corner_radius=10, fg_color=background_color, border_width=1, border_color=background_color)
         button_frame.pack_propagate(False)
-        analyse_button = CTkButton(button_frame, text='Analyser Le Dossier', height=25,
-                                       bg_color=background_color, text_color=text_color, fg_color='#7f0101',
-                                       corner_radius=4, hover_color='#920101')
-        start_sorting_button = CTkButton(button_frame, text='Commencer le Triage', height=25,
-                                       bg_color=background_color, text_color=text_color, fg_color=button_background_color,
+        self.analyse_button = CTkButton(button_frame, text='Analyser Le Dossier', height=25,
+                                       bg_color='#3D3D3D', text_color=text_color, fg_color='#7f0101',
+                                       corner_radius=4, hover_color='#920101',
+                                       command=lambda *args: threading.Thread(target=lambda *args: self.button_analyse_on_click()).start())
+        self.start_sorting_button = CTkButton(button_frame, text='Commencer le Triage', height=25,
+                                       bg_color='#3D3D3D', text_color=text_color, fg_color=button_background_color,
                                        corner_radius=4, hover_color=button_background_hover_color,
                                        command=lambda: self.button_start_on_click())
-        filecheck_label = ttk.Label(button_frame, text='', font=(default_font[0], 10),
-                                    foreground=text_color, background='#3D3D3D', wraplength=170)
-        self.yes_button = tk.Button(button_frame, relief='flat', bd=0, activebackground='#3D3D3D', background='#3D3D3D', image=self.yes_image)
-        self.no_button = tk.Button(button_frame, relief='flat', bd=0, activebackground='#3D3D3D', background='#3D3D3D', image=self.no_image)
+        filecheck_label = ttk.Label(button_frame, text='', font=(default_font[0], 9),
+                                    foreground=text_color, textvariable=self.filecheck_label_var,
+                                    background='#3D3D3D', wraplength=170)
+        self.yes_button = tk.Button(button_frame, relief='flat', bd=0, highlightthickness=0, activebackground='#3D3D3D',
+                                    background='#3D3D3D', image=self.yes_image, command=lambda: self.button_click('yes'))
+        self.no_button = tk.Button(button_frame, relief='flat', bd=0, highlightthickness=0,
+                                   activebackground='#3D3D3D', command=lambda: self.button_click('no'), background='#3D3D3D', image=self.no_image)
         self.yes_to_all_button = CTkButton(button_frame, text='Oui Pour Tous', height=25,
-                                       bg_color=background_color, fg_color=button_background_color,
+                                       bg_color='#3D3D3D', fg_color=button_background_color,
+                                       command=lambda: self.button_click('yes-to-all'),
                                        corner_radius=4, hover_color=button_background_hover_color)
         self.no_to_all_button = CTkButton(button_frame, text='Non Pour Tous', height=25,
-                                       bg_color=background_color, fg_color=button_background_color,
+                                       bg_color='#3D3D3D', fg_color=button_background_color, command=lambda: self.button_click('no-to-all'),
                                        corner_radius=4, hover_color=button_background_hover_color)
 
         button_frame.place(x=550, y=115)
         border_frame.place(x=550, y=205)
         self.toggle_button_state('I LOVE WATERMELON!!!!!')
 
-        analyse_button.place(relx=0.5 - analyse_button['width'] / 2 / 170, y=15)
-        start_sorting_button.place(relx=0.5 - start_sorting_button['width'] / 2 / 170, y=50) #+35
+        self.analyse_button.place(relx=0.5 - self.analyse_button['width'] / 2 / 170, y=15)
+        self.start_sorting_button.place(relx=0.5 - self.start_sorting_button['width'] / 2 / 170, y=50) #+35
         self.yes_to_all_button.place(relx=0.5 - self.yes_to_all_button['width'] / 2 / 170, y=148)
         self.no_to_all_button.place(relx=0.5 - self.no_to_all_button['width'] / 2 / 170, y=179)
         self.yes_button.place(x=13, rely=0.76)
@@ -371,11 +627,24 @@ class GUI(tk.Tk):
         self.sortingtype_entry_var.trace_add('write', lambda *args: self.update_gui_fields(3))
         self.namingtype_entry_var.trace_add('write', lambda *args: self.update_gui_fields(4))
 
+        # hover tips
+        # path_entry_tip_text
+        # output_path_tip_text
+        CustomTooltipLabel(anchor_widget=path_entry_label, text=path_entry_tip_text,
+                           background='#2c2c2c', font=tip_font,
+                           wraplength=utils.get_wraplength(self, path_entry_label),
+                           foreground=text_color, hover_delay=500, border=1)
+        
+        CustomTooltipLabel(anchor_widget=output_path_label, text=output_path_tip_text,
+                           background='#2c2c2c', font=tip_font,
+                           wraplength=utils.get_wraplength(self, path_entry_label),
+                           foreground=text_color, hover_delay=500, border=1)
+
+
         # debug scrolled text
-        debug = scrolledtext.ScrolledText(self, wrap=tk.WORD, height=12, width=115, font=(default_font[0], 10), fg=text_color, bg='black')
+        self.debug = scrolledtext.ScrolledText(self, wrap=tk.WORD, state='disabled', height=12,
+                                               width=122, font=(default_font[0], 10),
+                                               fg=text_color, bg='black')
+        self.debug.tag_configure("sel", background='black', foreground=text_color)
 
-        debug.place(x=3, y=470)
-
-a = GUI()
-a.draw_gui()
-a.mainloop()
+        self.debug.place(x=3, y=470)
