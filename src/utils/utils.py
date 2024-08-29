@@ -1,14 +1,10 @@
 def get_widget_screen_position(widget):
     widget.update()
-    # Obtenir la position du widget par rapport à sa fenêtre parente
+
     x_relative = widget.winfo_x()
     y_relative = widget.winfo_y()
-
-    # Obtenir la position de la fenêtre parente sur l'écran
     x_window = widget.winfo_toplevel().winfo_x()
     y_window = widget.winfo_toplevel().winfo_y()
-
-    # Calculer la position absolue
     x_screen = x_window + x_relative
     y_screen = y_window + y_relative
 
@@ -31,8 +27,6 @@ def is_sorting_valid(sorting_type):
         if char in valid_separators:
             if char == '/':
                 # subfolder, checking if folder name is supported
-                # change that to splitting text with / then getting the index of next slash and backward loop :skull:
-                # 'yyyydd/ -     /dd'
                 try:
                     next_folder_index = sorting_type.index('/', i+1)
                     y = next_folder_index - 1
@@ -51,7 +45,6 @@ def is_sorting_valid(sorting_type):
                         return False
 
                 except ValueError:
-                    # logic to be implemented
                     is_valid = False
                     for y in range(i+1, len(sorting_type)):
                         if sorting_type[y] != ' ':
