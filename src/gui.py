@@ -233,6 +233,12 @@ class GUI(tk.Tk):
         self.add_line('      ')
         self.add_line(f'{self.moved_images} images/vidéos et {self.moved_documents} documents ont été tri avec succès', 'green')
         self.add_line('*** TRI TERMINÉ ***')
+        self.add_line('      ')
+        FileUtils.freeFolder(self.folder)
+        self.folder = None
+        self.moved_images = 0
+        self.moved_documents = 0
+        self.analyse_button.configure(fg_color='#7f0101', hover_color='#920101')
         self.start_sorting_button.configure(state='normal')
         self.analyse_button.configure(state='normal')
 
@@ -639,4 +645,3 @@ class GUI(tk.Tk):
         self.debug.tag_configure("sel", background='black', foreground=text_color)
 
         self.debug.place(x=3, y=470)
-            
