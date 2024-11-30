@@ -262,39 +262,6 @@ class GUI(tk.Tk):
         self.button_state[field_index-1] = value
         self.update_entries()
 
-    def replace_line_1(self, text, color=None): # TODO fucked up fix the color system & \n problem (if x.some index is > than zero then newline)
-        '''replace the last line of the debug scrolled text by text argument, optionally with a specified color'''
-        last_line_index = int(self.debug.index(tk.END).split('.')[0]) - 2
-        self.debug.configure(state='normal')
-
-        self.debug.delete(f'{last_line_index}.0', f'{last_line_index}.0 lineend')
-        self.debug.insert(f'{last_line_index}.0', f'{text}')
-
-        if color:
-            line_start = f"{last_line_index}.0"
-            line_end = f"{last_line_index + 1}.0"
-            self.debug.tag_add(color, line_start, line_end)
-            self.debug.tag_configure(color, foreground=color)
-
-        self.debug.configure(state='disabled')
-
-    def add_line_1(self, text, color=None): # TODO fucked up fix the color system 
-        '''add a line with text at the bottom of the debug scrolled text, optionally with a specified color'''
-        last_line_index = int(self.debug.index(tk.END).split('.')[0]) - 1
-        self.debug.configure(state='normal')
-
-        end_index = self.debug.index(tk.END)
-        self.debug.insert(end_index, f'{text}\n')
-
-        if color:
-            line_start = f"{last_line_index}.0"
-            line_end = f"{last_line_index + 1}.0"
-            self.debug.tag_add(color, line_start, line_end)
-            self.debug.tag_configure(color, foreground=color)
-
-        self.debug.yview_moveto(1.0)
-        self.debug.configure(state='disabled')
-
     def print_line_lengths(self):
         num_lines = int(self.debug.index(tk.END).split('.')[0]) - 1
         for line_num in range(1, num_lines + 1):
