@@ -1,4 +1,7 @@
 from ctypes import Structure, c_char_p, c_int, POINTER
+from datetime import datetime
+from PIL import Image
+import platform
 import ctypes
 import os
 
@@ -35,6 +38,44 @@ FileUtils.moveFile.restype = c_int
 
 # def get_destination_path():
 
+def creation_date(path):
+    """
+    Try to get the date that a file was created, falling back to when it was
+    last modified if that isn't possible.
+    See http://stackoverflow.com/a/39501288/1709587 for explanation.
+    """
+    if platform.system() == 'Windows':
+        timestamp = os.path.getmtime(path)
+    else:
+        stat = os.stat(path)
+        try:
+            timestamp = stat.st_birthtime
+        except AttributeError:
+            # We're probably on Linux. No easy way to get creation dates here,
+            # so we'll settle for when its content was last modified.
+            timestamp = stat.st_mtime
+    try:
+        date = datetime.fromtimestamp(timestamp)
+        return [
+            f"{date.year:04d}",
+            f"{date.month:02d}",
+            f"{date.day:02d}",
+            f"{date.hour:02d}",
+            f"{date.minute:02d}",
+            f"{date.second:02d}"
+        ]
+    except Exception:
+        return []
+
+def get_date_taken(path):
+    try:
+        # get date taken from exif
+        exif = Image.open(path)._getexif()
+        return exif[36867].replace(' ', ':').split(':')
+    except Exception as e:
+        # fallback to last modified
+        print(e)
+        return creation_date(path)
 
 def get_folder(button_state, path):
     if button_state[0] == '0':
