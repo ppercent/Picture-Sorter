@@ -8,7 +8,7 @@ from tkinter import scrolledtext
 from customtkinter import CTkEntry, CTkButton, CTkFrame
 from utils.tooltip import CustomTooltipLabel
 from utils import utils
-from file_operation.file_utils import FileUtils, get_folder, check_button_state, get_destination_path
+from file_operation.file_utils import FileUtils, get_folder, check_button_state, get_destination_path, get_date_taken
 
 class GUI(tk.Tk):
     def __init__(self):
@@ -198,7 +198,7 @@ class GUI(tk.Tk):
         document_count = self.folder.contents.other_count
         for i in range(image_count):
             current_image_path = self.folder.contents.images[i].path.decode('utf-8')
-            current_image_date = self.folder.contents.images[i].date.decode('utf-8')
+            current_image_date = get_date_taken(current_image_path)
             current_destination_path = get_destination_path(current_image_path, output_path, sorting_type, naming_type, is_inserting_date, current_image_date)
 
             self.add_line(f'Traitement en cours: {current_image_path}')
@@ -217,7 +217,7 @@ class GUI(tk.Tk):
             if i in self.document_blacklist:
                 continue
             current_document_path = self.folder.contents.others[i].path.decode('utf-8')
-            current_document_date = self.folder.contents.others[i].date.decode('utf-8')
+            current_document_date = get_date_taken(current_document_path)
             current_destination_path_doc = get_destination_path(current_document_path, output_path, sorting_type, naming_type, is_inserting_date, current_document_date)
 
             self.add_line(f'Traitement en cours: {current_document_path}')
