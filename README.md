@@ -8,3 +8,4 @@ This is a software to sort a large amount of pictures / videos at once into subf
 - rewrite the output console (to fit the rest of the GUI)
 - use regex for checking sorting/naming types
 - add more flexible naming types: allow any character AND match the type identifiers: 'bonjour belles <dd> <mm> <yyyy> images' (using regex too)
+- [ ] what
