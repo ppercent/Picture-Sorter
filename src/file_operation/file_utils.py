@@ -4,6 +4,7 @@ from PIL import Image
 import platform
 import ctypes
 import os
+import re
 
 class Image(Structure):
     _fields_ = [("path", c_char_p),
@@ -109,11 +110,34 @@ def check_button_state(button_state, folder, insertname_check_var):
     if insertname_check_var == 'on' and state[3] == '1':
         raise ValueError("L'option de remplacage du nom du fichier par sa date requiert l'utilisation d'un mode de renommage. Veuillez entrer un mode de renommage valide.")
 
+def refresh_count(matchobj):
+    return f'({int(matchobj.group(1)) + 1})'
+
+def check_existing_path(parent_directory, file_name, file_extension):
+    '''ensures path doesn't already exists, if it does it will happen a (n) in the name of the file'''
+    
+    destination_path = parent_directory + file_name + file_extension
+
+    while FileUtils.directoryExists(bytes(destination_path, 'utf-8')):
+        # call the re match
+        matched_file_name = re.sub(r"\((\d+)\)", refresh_count, file_name)
+
+        # checks if its return value is same as current file name | if it is, add (1) to file_name
+        if matched_file_name == file_name:
+            file_name += " (1)"
+        else:
+            file_name = matched_file_name
+            
+        # update destination_path
+        destination_path = parent_directory + file_name + file_extension
+
+    return destination_path
+
 def get_destination_path(path, output_path, sorting_type, naming_type, is_inserting_date, date):
     parent_path = output_path if output_path else os.path.dirname(path)
     sorted_subfolders = sorting_type.split('/')
     destination_path = f'{parent_path}'
-    file_name = os.path.splitext(os.path.basename(path))
+    file_name, file_extension = os.path.splitext(os.path.basename(path))
     separators = ['-', '_', ' ']
     dates = date # dont mind me
     destination_date = ''
@@ -178,13 +202,15 @@ def get_destination_path(path, output_path, sorting_type, naming_type, is_insert
         i += 1
 
     # add output folder, sorted folder, filename, date together    
+    destination_name = ""
+    
     if is_inserting_date:
         if naming_type:
-            # destination_path += file_name[0] + f' ({destination_date})' + file_name[1]
-            destination_path += destination_date + ' ' + file_name[0] + file_name[1]
+            destination_name = destination_date + ' ' + file_name
         else:
-            destination_path += file_name[0] + file_name[1]
+            destination_name = file_name
     else:
-        destination_path += destination_date + file_name[1]
-    
-    return destination_path
+        destination_name = destination_date
+        
+    # return making sure no images hold the same name in that directory
+    return check_existing_path(destination_path, destination_name, file_extension)
