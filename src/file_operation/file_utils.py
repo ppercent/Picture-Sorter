@@ -134,9 +134,8 @@ def check_existing_path(parent_directory, file_name, file_extension):
     return destination_path
 
 def get_destination_path(path, output_path, sorting_type, naming_type, is_inserting_date, date):
-    parent_path = output_path if output_path else os.path.dirname(path)
     sorted_subfolders = sorting_type.split('/')
-    destination_path = f'{parent_path}'
+    destination_path = f'{output_path}'
     file_name, file_extension = os.path.splitext(os.path.basename(path))
     separators = ['-', '_', ' ']
     dates = date # dont mind me
