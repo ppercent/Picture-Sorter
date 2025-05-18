@@ -115,7 +115,7 @@ def get_destination_path(path, output_path, sorting_type, naming_type, is_insert
     destination_path = f'{parent_path}'
     file_name = os.path.splitext(os.path.basename(path))
     separators = ['-', '_', ' ']
-    dates = date.split('-')
+    dates = date # dont mind me
     destination_date = ''
 
     # subfolders
