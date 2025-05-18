@@ -139,7 +139,7 @@ class GUI(tk.Tk):
 
         # get data
         path = self.path_entry_var.get()
-        output_path = self.output_path_var.get()
+        output_path = self.output_path_var.get() if self.output_path_var.get() else path
         sorting_type = self.sortingtype_entry_var.get()
         naming_type = self.namingtype_entry_var.get()
         is_sorting_documents = True if self.filetype_check_var.get() == 'on' else False
