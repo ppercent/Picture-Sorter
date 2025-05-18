@@ -208,7 +208,7 @@ class GUI(tk.Tk):
             except OSError as e:
                 self.add_line(f'[ERREUR] Erreur lors du déplacement du fichier: {current_image_path}', '#ff3333')
 
-            if current_img_retval == 0:
+            if current_img_retval == 0 and FileUtils.directoryExists(bytes(current_destination_path, 'utf-8')):
                 self.moved_images += 1
 
         for i in range(document_count):
@@ -227,7 +227,7 @@ class GUI(tk.Tk):
             except OSError as e:
                 self.add_line(f'[ERREUR] Erreur lors du déplacement du fichier: {current_document_path}', '#ff3333')
 
-            if current_doc_retval == 0:
+            if current_doc_retval == 0 and FileUtils.directoryExists(bytes(current_destination_path_doc, 'utf-8')):
                 self.moved_documents += 1
                 
         self.add_line('      ')
