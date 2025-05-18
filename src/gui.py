@@ -59,7 +59,7 @@ class GUI(tk.Tk):
     def init_images(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
-        self.iconbitmap(base_dir + '\\assets\\app_icon.ico')
+        # self.iconbitmap(base_dir + '\\assets\\app_icon.ico')
         self.yes_image = tk.PhotoImage(file=base_dir + '\\assets\\oui_64px.png')
         self.no_image = tk.PhotoImage(file=base_dir + '\\assets\\non_64px.png')
         self.tip_image = tk.PhotoImage(file=base_dir + '\\assets\\info_25px.png')
