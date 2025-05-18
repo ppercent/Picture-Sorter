@@ -380,7 +380,7 @@ class GUI(tk.Tk):
 
     def draw_gui(self):
         # texts
-        self.title_text = 'Trieur D\'images - Developpé Par Constantin™ ;)'
+        self.title_text = 'Trieur D\'images - Developpé Par Bladeeee™ ;)'
         explaination_text = 'Ce programme permet de trier et nommer par date des photos et des documents en masse.'
         path_entry_text = '1. Entrez le repertoire de photos:'
         output_path_text = '2. Entrez le repertoire de sortie'
