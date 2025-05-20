@@ -354,7 +354,7 @@ class GUI(tk.Tk):
                 # is neutral
                 self.update_button_state(field_index, '1')
                 return
-            if utils.is_sorting_valid(self.sortingtype_entry_var.get()):
+            if utils.is_field_type_valid(self.sortingtype_entry_var.get()):
                 # is valid
                 self.update_button_state(field_index, '2')
             else:
@@ -365,7 +365,7 @@ class GUI(tk.Tk):
                 # is neutral
                 self.update_button_state(field_index, '1')
                 return
-            if utils.is_naming_valid(self.namingtype_entry_var.get()):
+            if utils.is_field_type_valid(self.namingtype_entry_var.get(), 1):
                 # is valid
                 self.update_button_state(field_index, '2')
             else:
@@ -380,7 +380,7 @@ class GUI(tk.Tk):
 
     def draw_gui(self):
         # texts
-        self.title_text = 'Trieur D\'images - Developpé Par Bladeeee™ ;)'
+        self.title_text = 'Trieur D\'images - Developpé Par Constantin™ ;)'
         explaination_text = 'Ce programme permet de trier et nommer par date des photos et des documents en masse.'
         path_entry_text = '1. Entrez le repertoire de photos:'
         output_path_text = '2. Entrez le repertoire de sortie'
