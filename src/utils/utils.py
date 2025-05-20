@@ -1,3 +1,6 @@
+import re
+
+
 def get_widget_screen_position(widget):
     widget.update()
 
@@ -14,115 +17,47 @@ def get_wraplength(master, widget):
     pady = 50
     return master.winfo_screenwidth() - get_widget_screen_position(widget)[0] - pady
 
-def is_sorting_valid(sorting_type):
-    valid_separators = ['-', '_', '/', ' ']
-    valid_chars = ['y', 'm', 'd']
-
-    if sorting_type[0] == '/' or sorting_type[-1] == '/':
-        # nameless folder to be created, invalid
-        return False
-    i = 0
-    while i < len(sorting_type):
-        char = sorting_type[i]
-        if char in valid_separators:
-            if char == '/':
-                # subfolder, checking if folder name is supported
-                try:
-                    next_folder_index = sorting_type.index('/', i+1)
-                    y = next_folder_index - 1
-                    is_valid = False
-                    while y > i:
-                        if sorting_type[y] != ' ':
-                            is_valid = True
-                            break
-                        y -= 1
-                    if is_valid:
-                        is_valid = False
-                        i += 1
-                        continue
-                    else:
-                        # only spaces in the folder name (blank name folder), invalid
-                        return False
-
-                except ValueError:
-                    is_valid = False
-                    for y in range(i+1, len(sorting_type)):
-                        if sorting_type[y] != ' ':
-                            is_valid = True
-                            break
-                    if is_valid:
-                        is_valid = False
-                        i += 1
-                        continue
-                    else:
-                        # only spaces in the folder name (blank name folder), invalid
-                        return False
-            # is valid separator, skip to next char
-            i+=1
-            continue
-        if char not in valid_chars and char not in valid_separators:
-            # unsupported char, invalid
+def is_directory_field_valid(sorting_type):
+    '''returns true if sorting type pathing is valid, false otherwise | ex. "/hey/bro -> invalid && hey/bro -> valid" '''
+    
+    elements = sorting_type.split('/')
+    for elm in elements:
+        if not elm.strip():
             return False
-        if char == 'y':
-            if len(sorting_type) - i < 4:
-                # not enought place to fit 4 Ys, invalid
-                return False
-            else:
-                for j in range(1, 4):
-                    if sorting_type[i+j] != 'y':
-                        # wrong Ys sequence, invalid
-                        return False
-                i += 4
-                continue
-        else:
-            if len(sorting_type) - i < 2:
-                # not enought place to fit 2 correct letters, invalid
-                return False
-            else:
-                if char != sorting_type[i+1]:
-                    # wrong sequence, invalid
-                    return False
-                i += 2
-                continue
-        i+=1
-    # is valid
     return True
 
-def is_naming_valid(naming_type):
-    valid_separators = ['-', '_', ' ']
-    valid_chars = ['y', 'm', 'd', 'H', 'M', 'S']
+def is_date_item_valid(date_item):
+    '''returns true if date item is valid, false otherwise | ex. "month", "day month year" '''
+    
+    if not date_item:
+        return False
+        
+    valid_date_items = set(['second', 'minute', 'hour', 'day', 'month', 'year'])
+    parsed = set(date_item.split())
 
-    i = 0
-    while i < len(naming_type):
-        char = naming_type[i]
-        if char in valid_separators:
-            # is valid separator, skip to next char
-            i += 1
-            continue
-        if char not in valid_chars and char not in valid_separators:
-            # unsupported char, invalid
+    return len(parsed & valid_date_items) == len(parsed)
+
+
+def is_field_type_valid(field, is_naming_type=0):
+    '''returns true if sorting type is valid, false otherwise | ex. "my sorted pictures (<year months>)" '''
+
+    exclusion_chars = r'/\:?"|<>' if is_naming_type else r'\:?"|<>'
+    date_pattern = r'<([a-zA-Z ]*)>'
+    date_replacement = r'\1'
+    parsed = re.sub(date_pattern, date_replacement, field)
+
+    # invalid characters for file naming conventions
+    if set(exclusion_chars) & set(parsed):
+        return False
+    
+    # check if date items are invalid
+    date_items = re.findall(date_pattern, field)
+    for date_item in date_items:
+        if not is_date_item_valid(date_item):
             return False
-        if char == 'y':
-           if len(naming_type) - i < 4:
-               # not enought place to fit 4 Ys, invalid
-               return False
-           else:
-               for j in range(1, 4):
-                   if naming_type[i+j] != 'y':
-                       # wrong Ys sequence, invalid
-                       return False
-               i += 4
-               continue
-        else:
-            if len(naming_type) - i < 2:
-                # not enought place to fit 2 correct letters, invalid
-                return False
-            else:
-                if naming_type[i] != naming_type[i+1]:
-                    # wrong sequence, invalid
-                    return False
-                i += 2
-                continue
-        i += 1
-    # is valid
+            
+    # makes sure the directories are valid (only for sorting_type)
+    if not is_naming_type and not is_directory_field_valid(field):
+        return False
+        
     return True
